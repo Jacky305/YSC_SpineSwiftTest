@@ -11,15 +11,17 @@ import Foundation
 class YSC_SpineJSONTools {
     func readJSONFile(name:String) -> JSON {
         
-        let path = NSBundle.mainBundle().pathForResource(name, ofType: "json")
+        let path = Bundle.main.path(forResource: name, ofType: "json")
         var jsonData = NSData()
         do {
-            jsonData = try NSData(contentsOfFile: path!, options: .DataReadingUncached)
+            jsonData = try NSData(contentsOfFile: path!, options: .uncached)
         } catch let error as NSError {
             print(error.domain)
         }
-        let jsonResult = JSON(data: jsonData)
+        
+        let jsonResult = try! JSON(data: jsonData as Data)
         
         return jsonResult
+        
     }
 }

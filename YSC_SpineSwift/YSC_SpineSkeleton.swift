@@ -29,12 +29,12 @@ class YSC_SpineSkeleton: SKNode {
     
     var spineVersion = String()
     var currentSkinName = "default"
-    var originalSize = CGSizeZero
+    var originalSize = CGSize(width: 0, height: 0)
     
     var bones = Array<YSC_SpineBone>()
     var slots = Array<YSC_SpineSlot>()
     var animatingSlotNames = Dictionary<String, Array<String>>() // animation name: [slot name]
-    var longestDurations = Dictionary<String, NSTimeInterval>()     // animation name:longestDuration
+    var longestDurations = Dictionary<String, TimeInterval>()     // animation name:longestDuration
     
     var atlas = SKTextureAtlas()
     var animationNames = Array<String>()
@@ -49,7 +49,7 @@ class YSC_SpineSkeleton: SKNode {
             }
             return nil
         }
-
+        
         set (aName){
             for animationName in animationNames {
                 if aName == animationName {
@@ -66,13 +66,13 @@ class YSC_SpineSkeleton: SKNode {
     
     // MARK:- SETUP
     
-    func spawn(JSONName JSONName:String, atlasName:String, skinName:String?) {
+    func spawn(JSONName:String, atlasName:String, skinName:String?) {
         
         atlas = SKTextureAtlas(named: atlasName)
         
         // load JSON file
         let tool = YSC_SpineJSONTools()
-        let json = tool.readJSONFile(JSONName)
+        let json = tool.readJSONFile(name: JSONName)
         
         // Basic Skeleton info
         self.spineVersion = json["skeleton"]["spine"].stringValue
@@ -98,11 +98,11 @@ class YSC_SpineSkeleton: SKNode {
         let animationsJSON = json["animations"]
         self.createAnimations(animationJSON: animationsJSON)
         let ikJSON = json["ik"]
-        self.setupForIKAction(ikJSON)
+        self.setupForIKAction(ikJSON: ikJSON)
         
     }
     
-    func createBones(bonesJSON bonesJSON:JSON) -> Array<YSC_SpineBone> {
+    func createBones(bonesJSON:JSON) -> Array<YSC_SpineBone> {
         
         var tempBones = Array<YSC_SpineBone>()
         
@@ -125,7 +125,7 @@ class YSC_SpineSkeleton: SKNode {
             } else {    // if there's no parent bone, it's a root bone. it should be the child of the skeleton
                 self.addChild(aBone)
             }
- 
+            
         }
         
         // Consider the inheritance of rotation for each bone (if inheritance is false, remove all ancestor's rotation)
@@ -136,7 +136,7 @@ class YSC_SpineSkeleton: SKNode {
             if aBone.inheritRotation == false {
                 parent = aBone.parent
                 while let nextParent = parent {
-                    if nextParent.isKindOfClass(YSC_SpineBone) {
+                    if nextParent is YSC_SpineBone {
                         dAngle = dAngle + nextParent.zRotation
                     }
                     parent = nextParent.parent
@@ -145,11 +145,11 @@ class YSC_SpineSkeleton: SKNode {
             aBone.zRotation = aBone.zRotation - dAngle
             aBone.setDefaultsAndBase()
         }
-
+        
         return tempBones
     }
     
-    func createSlots(slotsJSON slotsJSON:JSON) -> Array<YSC_SpineSlot> {
+    func createSlots(slotsJSON:JSON) -> Array<YSC_SpineSlot> {
         
         // Initialize temporary array of slot instances
         var tempSlots = Array<YSC_SpineSlot>()
@@ -173,7 +173,7 @@ class YSC_SpineSkeleton: SKNode {
         return tempSlots
     }
     
-    func createSkin(skinJSON skinJSON:JSON) {
+    func createSkin(skinJSON:JSON) {
         
         for (slotName, attachmentJSON):(String, JSON) in skinJSON {
             
@@ -195,8 +195,10 @@ class YSC_SpineSkeleton: SKNode {
                     attachment.colorBlendFactor = 0.5
                 }
                 if slot.defaultAttachmentName == attachment.name {  // set default attachment viewable
-                    //print(attachment)
-                    attachment.hidden = false
+                    attachment.isHidden = false
+                    
+                    let textureName = attachment.name?.replacingOccurrences(of: "res_mon/01. Chicken/", with: "", options: .literal, range: nil)
+                    attachment.texture = SKTexture(imageNamed: "\(textureName!)")
                     slot.currentAttachmentName = attachment.name
                 }
                 slot.addChild(attachment)
@@ -209,11 +211,8 @@ class YSC_SpineSkeleton: SKNode {
         for (animationName, animationData):(String, JSON) in animationsJSON {
             
             self.animationNames.append(animationName)           // store the name of animation for reference
-            // print(self.animationNames)
-            let longestDuration = self.findLongestDuration(animationData)       // need the longest duration to sync all actions
+            let longestDuration = self.findLongestDuration(animationData: animationData)       // need the longest duration to sync all actions
             self.longestDurations[animationName] = longestDuration
-            // print(self.longestDurations)
-            // print(animationName, longestDuration) // confirmed
             
             // slot animations
             let slotAnimations = animationData["slots"]
@@ -222,7 +221,7 @@ class YSC_SpineSkeleton: SKNode {
                 for aSlot in self.slots {                       // Finding slots which have animation
                     if slotName == aSlot.name {
                         slotArray.append(slotName)
-                        aSlot.createAnimation(animationName, timelineTypes: timelineTypes, longestDuration: longestDuration)
+                        aSlot.createAnimation(animationName: animationName, timelineTypes: timelineTypes, longestDuration: longestDuration)
                     }
                 }
                 
@@ -234,19 +233,18 @@ class YSC_SpineSkeleton: SKNode {
             let boneAnimations = animationData["bones"]
             for aBone in self.bones {
                 let SRTTimelines = boneAnimations[aBone.name!]
-                aBone.createAnimations(animationName, SRTTimelines: SRTTimelines, longestDuration: longestDuration)
+                aBone.createAnimations(animationName: animationName, SRTTimelines: SRTTimelines, longestDuration: longestDuration)
             }
-
+            
             
         }
-        //print(self.animatingSlotNames) // confirmed
     }
     
     func setupForIKAction(ikJSON:JSON) {
         for aBone in self.bones {
             
             for (_, ik):(String, JSON) in ikJSON {
-
+                
                 let lastIndex = ik["bones"].count - 1
                 let ikBoneName = ik["bones"][lastIndex].stringValue
                 let rootBoneName = ik["bones"][0].stringValue
@@ -260,9 +258,9 @@ class YSC_SpineSkeleton: SKNode {
                     } else {
                         aBone.reachConstraints = SKReachConstraints(lowerAngleLimit: 20 * SPINE_DEGTORADFACTOR, upperAngleLimit: 160 * SPINE_DEGTORADFACTOR)
                     }
-                    let ikRootNode = self.findBone(rootBoneName, inBonesArray: self.bones)
+                    let ikRootNode = self.findBone(boneName: rootBoneName, inBonesArray: self.bones)
                     aBone.ikRootNode = ikRootNode
-                    let ikTargetNode = self.findBone(targetBoneName, inBonesArray: self.bones)
+                    let ikTargetNode = self.findBone(boneName: targetBoneName, inBonesArray: self.bones)
                     aBone.ikTargetNode = ikTargetNode
                     let endPoint = SKNode()
                     endPoint.name = "endPoint"
@@ -281,17 +279,17 @@ class YSC_SpineSkeleton: SKNode {
             for slotName in animatingSlotNameArray {
                 for aSlot in self.slots {
                     if aSlot.name == slotName {
-                        aSlot.runAnimation(animationName, count: count)
+                        aSlot.runAnimation(animationName: animationName, count: count)
                     }
                 }
             }
         }
         for aBone in self.bones {
-            aBone.runAnimation(animationName, count: count)
+            aBone.runAnimation(animationName: animationName, count: count)
         }
     }
     
-    func runAnimationUsingQueue(animationName:String, count:Int, interval:NSTimeInterval) {
+    func runAnimationUsingQueue(animationName:String, count:Int, interval:TimeInterval) {
         
         if let queuedAnimationName = self.privateQueuedAnimation {
             
@@ -301,7 +299,7 @@ class YSC_SpineSkeleton: SKNode {
                 for slotName in animatingSlotNameArray {
                     for aSlot in self.slots {
                         if aSlot.name == slotName {
-                            aSlot.runAnimationUsingQueue(animationName, count: count, interval: interval, queuedAnimationName: queuedAnimationName)
+                            aSlot.runAnimationUsingQueue(animationName: animationName, count: count, interval: interval, queuedAnimationName: queuedAnimationName)
                         }
                     }
                 }
@@ -309,7 +307,7 @@ class YSC_SpineSkeleton: SKNode {
             // bone animation
             for aBone in self.bones {
                 
-                aBone.runAnimationUsingQueue(animationName, count: count, interval: interval, queuedAnimationName: queuedAnimationName)
+                aBone.runAnimationUsingQueue(animationName: animationName, count: count, interval: interval, queuedAnimationName: queuedAnimationName)
             }
         } else {
             print("No queued animation. Set queue animation first!!!")
@@ -321,7 +319,7 @@ class YSC_SpineSkeleton: SKNode {
         if self.privateQueuedAnimation == nil {
             print("No queued animation!!! Set it first!!")
         } else {
-            self.runAnimation(self.privateQueuedAnimation!, count: -1)
+            self.runAnimation(animationName: self.privateQueuedAnimation!, count: -1)
         }
     }
     
@@ -342,20 +340,19 @@ class YSC_SpineSkeleton: SKNode {
             }
             
             if aBone.hasIKAction == true {
-                let position = self.scene!.convertPoint(aBone.ikTargetNode.position, fromNode: aBone.ikTargetNode.parent!)
-                //print(aBone.ikTargetNode.name, position)
-                let action = SKAction.reachTo(position, rootNode: aBone.ikRootNode, duration: 0)
-                let ikAction = SKAction.runAction(action, onChildWithName: "endPoint")
-                aBone.runAction(ikAction)
+                let position = self.scene!.convert(aBone.ikTargetNode.position, from: aBone.ikTargetNode.parent!)
+                let action = SKAction.reach(to: position, rootNode: aBone.ikRootNode, duration: 0)
+                let ikAction = SKAction.run(action, onChildWithName: "endPoint")
+                aBone.run(ikAction)
             }
         }
     }
     
     // MARK:- ETC
     
-    func findLongestDuration(animationData:JSON) -> NSTimeInterval {
+    func findLongestDuration(animationData:JSON) -> TimeInterval {
         
-        var longestDuration = NSTimeInterval(0)
+        var longestDuration = TimeInterval(0)
         for (_, json1):(String, JSON) in animationData{
             for (_,json2):(String, JSON) in json1 {
                 for (_, json3):(String, JSON) in json2 {
@@ -383,7 +380,7 @@ class YSC_SpineSkeleton: SKNode {
     func findAttachment(name:String) -> YSC_SpineAttachment? {
         var attachment:YSC_SpineAttachment?
         for aSlot in self.slots {
-            aSlot.enumerateChildNodesWithName(name, usingBlock: { (node:SKNode, stop:UnsafeMutablePointer<ObjCBool>) -> Void in
+            aSlot.enumerateChildNodes(withName: name, using: { (node:SKNode, stop:UnsafeMutablePointer<ObjCBool>) -> Void in
                 if let sprite = node as? YSC_SpineAttachment {
                     attachment = sprite
                 }
@@ -397,26 +394,19 @@ class YSC_SpineSkeleton: SKNode {
         // This function is not working on runAnimationUsingQueue()
         var decision:Bool = false
         for aBone in self.bones {
-            if aBone.actionForKey(keyName) != nil {
+            if aBone.action(forKey: keyName) != nil {
                 decision = true
             }
         }
         for aSlot in self.slots {
-            aSlot.enumerateChildNodesWithName("*", usingBlock: { (node:SKNode, stop:UnsafeMutablePointer<ObjCBool>) -> Void in
+            aSlot.enumerateChildNodes(withName: "*", using: { (node:SKNode, stop:UnsafeMutablePointer<ObjCBool>) -> Void in
                 if let sprite = node as? YSC_SpineAttachment {
-                    if sprite.actionForKey(keyName) != nil {
+                    if sprite.action(forKey: keyName) != nil {
                         decision = true
                     }
                 }
             })
         }
-        /*
-        if decision == true {
-            print("\(keyName) is running!")
-        } else {
-            print("\(keyName) is not running!")
-        }
-        */
         return decision
     }
 }

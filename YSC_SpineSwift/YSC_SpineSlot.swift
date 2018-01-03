@@ -22,80 +22,75 @@ class YSC_SpineSlot: SKNode {
     
     // MARK:- SETUP
     
-    func spawn(slotJSON slotJSON:JSON, drawOrder:Int) {
+    func spawn(slotJSON:JSON, drawOrder:Int) {
         
         // Setting slot's attributes
         self.name = slotJSON["name"].stringValue
         self.parentName = slotJSON["bone"].stringValue   // no optional because it's a must
         if let color = slotJSON["color"].string {
-            self.color = self.colorRGBAFromString(color)
+            self.color = self.colorRGBAFromString(colorString: color)
         }
         
         // set currentAttachmentName
         self.defaultAttachmentName = slotJSON["attachment"].string
         self.zPosition = CGFloat(drawOrder) * 0.01
-        
-        // print(self)
     }
     
-    func createAnimation(animationName:String, timelineTypes:JSON, longestDuration:NSTimeInterval) {
+    func createAnimation(animationName:String, timelineTypes:JSON, longestDuration:TimeInterval) {
         
         let attachmentTimelines = timelineTypes["attachment"]
         
-        // print(attachmentTimelines)
-        
         // create attachment SKAction for all sprite children of the slot and store them in attachment instance
-        self.enumerateChildNodesWithName("*") { (node:SKNode, stop:UnsafeMutablePointer<ObjCBool>) -> Void in
-            //print(node.name)
+        self.enumerateChildNodes(withName: "*") { (node:SKNode, stop:UnsafeMutablePointer<ObjCBool>) -> Void in
             let attachment = node as! YSC_SpineAttachment
-            attachment.createAnimation(animationName, attachmentTimelines: attachmentTimelines, longestDuration: longestDuration)
+            attachment.createAnimation(animationName: animationName, attachmentTimelines: attachmentTimelines, longestDuration: longestDuration)
             
         }
         
-        if timelineTypes["color"].isExists() {
+        if timelineTypes["color"].exists() {
             let colorTimelines = timelineTypes["color"]
-            var duration:NSTimeInterval = 0
-            var elapsedTime:NSTimeInterval = 0
+            var duration:TimeInterval = 0
+            var elapsedTime:TimeInterval = 0
             var actionSequenceForColor = Array<SKAction>()
             for (_, timeline):(String, JSON) in colorTimelines {
-                duration = NSTimeInterval(timeline["time"].doubleValue) - elapsedTime
-                elapsedTime = NSTimeInterval(timeline["time"].doubleValue)
+                duration = TimeInterval(timeline["time"].doubleValue) - elapsedTime
+                elapsedTime = TimeInterval(timeline["time"].doubleValue)
                 let colorString = timeline["color"].stringValue
-                let color = self.colorRGBAFromString(colorString)
+                let color = self.colorRGBAFromString(colorString: colorString)
                 
-                let action = SKAction.colorizeWithColor(color, colorBlendFactor: 0.5, duration: duration)
-                if timeline["curve"].isExists() {
+                let action = SKAction.colorize(with: color, colorBlendFactor: 0.5, duration: duration)
+                if timeline["curve"].exists() {
                     let curveInfo = timeline["curve"].rawValue
-                    if curveInfo.isKindOfClass(NSString) {
+                    if curveInfo is NSString {
                         let curveString = curveInfo as! String
                         if curveString == "stepped" {
                             // stepped curve
-                            action.timingMode = .EaseIn
+                            action.timingMode = .easeIn
                         }
-                    } else if curveInfo.isKindOfClass(NSArray) {
+                    } else if curveInfo is NSArray {
                         // bezier curve
-                        action.timingMode = .EaseInEaseOut
+                        action.timingMode = .easeInEaseOut
                     }
                 } else {
                     // linear curve
-                    action.timingMode = .Linear
+                    action.timingMode = .linear
                 }
                 actionSequenceForColor.append(action)
             }
             let gabageTime = longestDuration - elapsedTime
-            let gabageAction = SKAction.waitForDuration(gabageTime)
+            let gabageAction = SKAction.wait(forDuration: gabageTime)
             actionSequenceForColor.append(gabageAction)
             self.colorAction[animationName] = SKAction.sequence(actionSequenceForColor)
         }
         
         
     }
-
+    
     // MARK:- ANIMATION
     func runAnimation(animationName:String, count:Int) {
         
         // cycle all child attachment to run action(the action is run by attachment)
-        self.enumerateChildNodesWithName("*") { (node:SKNode, stop:UnsafeMutablePointer<ObjCBool>) -> Void in
+        self.enumerateChildNodes(withName: "*") { (node:SKNode, stop:UnsafeMutablePointer<ObjCBool>) -> Void in
             
             node.removeAllActions()         // reset all actions first
             let sprite = node as! YSC_SpineAttachment
@@ -109,20 +104,20 @@ class YSC_SpineSlot: SKNode {
                         actionGroup.append(action)
                     }
                     if count <= -1 {
-                        let actionForever = SKAction.repeatActionForever(SKAction.group(actionGroup))
-                        sprite.runAction(actionForever, withKey: animationName)
+                        let actionForever = SKAction.repeatForever(SKAction.group(actionGroup))
+                        sprite.run(actionForever, withKey: animationName)
                     } else {
-                        let repeatedAction = SKAction.repeatAction(SKAction.group(actionGroup), count: count)
-                        sprite.runAction(repeatedAction, withKey: animationName)
+                        let repeatedAction = SKAction.repeat(SKAction.group(actionGroup), count: count)
+                        sprite.run(repeatedAction, withKey: animationName)
                     }
                 }
             }
         }
     }
     
-    func runAnimationUsingQueue(animationName:String, count:Int, interval:NSTimeInterval, queuedAnimationName:String) {
+    func runAnimationUsingQueue(animationName:String, count:Int, interval:TimeInterval, queuedAnimationName:String) {
         
-        self.enumerateChildNodesWithName("*") { (node:SKNode, stop:UnsafeMutablePointer<ObjCBool>) -> Void in
+        self.enumerateChildNodes(withName: "*") { (node:SKNode, stop:UnsafeMutablePointer<ObjCBool>) -> Void in
             
             node.removeAllActions()         // reset all actions first
             let sprite = node as! YSC_SpineAttachment
@@ -136,10 +131,10 @@ class YSC_SpineSlot: SKNode {
                         actionGroup.append(action)
                     }
                     if count <= -1 {
-                        let actionForever = SKAction.repeatActionForever(SKAction.group(actionGroup))
-                        sprite.runAction(actionForever, withKey: animationName)
+                        let actionForever = SKAction.repeatForever(SKAction.group(actionGroup))
+                        sprite.run(actionForever, withKey: animationName)
                     } else {
-                        let repeatedAction = SKAction.repeatAction(SKAction.group(actionGroup), count: count)
+                        let repeatedAction = SKAction.repeat(SKAction.group(actionGroup), count: count)
                         var queuedActionGroup = Array<SKAction>()
                         if let action = sprite.action[queuedAnimationName] {
                             queuedActionGroup.append(action)
@@ -148,37 +143,37 @@ class YSC_SpineSlot: SKNode {
                             queuedActionGroup.append(action)
                         }
                         if queuedActionGroup.isEmpty == false {
-                            sprite.runAction(repeatedAction, completion: { () -> Void in
+                            sprite.run(repeatedAction, completion: { () -> Void in
                                 let actionSequence = SKAction.sequence([
-                                    SKAction.waitForDuration(interval),
-                                    SKAction.repeatActionForever(SKAction.sequence(queuedActionGroup))
+                                    SKAction.wait(forDuration: interval),
+                                    SKAction.repeatForever(SKAction.sequence(queuedActionGroup))
                                     ])
-                                sprite.runAction(actionSequence, withKey: animationName)
+                                sprite.run(actionSequence, withKey: animationName)
                             })
                         } else {
-                            sprite.runAction(SKAction.repeatAction(repeatedAction, count: count), withKey: animationName)
+                            sprite.run(SKAction.repeat(repeatedAction, count: count), withKey: animationName)
                         }
                     }
                 }
             }
         }
     }
-
+    
     
     func stopAnimation() {
-        self.enumerateChildNodesWithName("*") { (node:SKNode, stop:UnsafeMutablePointer<ObjCBool>) -> Void in
+        self.enumerateChildNodes(withName: "*") { (node:SKNode, stop:UnsafeMutablePointer<ObjCBool>) -> Void in
             let sprite = node as! YSC_SpineAttachment
             sprite.removeAllActions()
         }
     }
     
     func setToDefaultAttachment() {
-        self.enumerateChildNodesWithName("*") { (node:SKNode, stop:UnsafeMutablePointer<ObjCBool>) -> Void in
+        self.enumerateChildNodes(withName: "*") { (node:SKNode, stop:UnsafeMutablePointer<ObjCBool>) -> Void in
             if let sprite = node as? YSC_SpineAttachment {
                 if self.defaultAttachmentName == sprite.name {
-                    sprite.hidden = false
+                    sprite.isHidden = false
                 } else {
-                    sprite.hidden = true
+                    sprite.isHidden = true
                 }
             }
         }
@@ -205,26 +200,29 @@ class YSC_SpineSlot: SKNode {
 extension String {
     
     subscript (i: Int) -> Character {
-        return self[self.startIndex.advancedBy(i)]
+        return self[self.index(self.startIndex, offsetBy: i)]
     }
     
     subscript (i: Int) -> String {
         return String(self[i] as Character)
     }
     
-    subscript (r: Range<Int>) -> String {
-        return substringWithRange(Range(start: startIndex.advancedBy(r.startIndex), end: startIndex.advancedBy(r.endIndex)))
+    subscript (r: CountableClosedRange<Int>) -> String {
+        get {
+            let startIndex = self.index(self.startIndex, offsetBy: r.lowerBound)
+            let endIndex = self.index(startIndex, offsetBy: r.upperBound - r.lowerBound)
+            return self[startIndex...endIndex]
+        }
     }
 }
-
 // hexadecimal string to int http://stackoverflow.com/questions/27189338/swift-native-functions-to-have-numbers-as-hex-strings
 extension UInt {
     init?(_ string: String, radix: UInt) {
         let digits = "0123456789abcdefghijklmnopqrstuvwxyz"
         var result = UInt(0)
-        for digit in string.lowercaseString.characters {
-            if let range = digits.rangeOfString(String(digit)) {
-                let val = UInt(digits.startIndex.distanceTo(range.startIndex))
+        for digit in string.lowercased().characters {
+            if let range = digits.range(of: String(digit)) {
+                let val = UInt(digits.distance(from: digits.startIndex, to: range.lowerBound))
                 if val >= radix {
                     return nil
                 }

@@ -19,10 +19,10 @@ class YSC_SpineAttachment: SKSpriteNode {
     
     var action = Dictionary<String, SKAction>()     // animation name : SKAction
     
-    func spawn(attachmentName attachmentName:String, attributes:JSON) {
-
+    func spawn(attachmentName:String, attributes:JSON) {
+        
         self.name = attachmentName
-
+        
         if let xPos = attributes["x"].double {              // assume 0 if omitted
             self.position.x = CGFloat(xPos)
         }
@@ -40,36 +40,34 @@ class YSC_SpineAttachment: SKSpriteNode {
         }
         self.size.width = CGFloat(attributes["width"].doubleValue)
         self.size.height = CGFloat(attributes["height"].doubleValue)
-        self.hidden = true
+        self.isHidden = true
         
     }
     
-    func createAnimation(animationName:String, attachmentTimelines:JSON, longestDuration:NSTimeInterval) {
-        var duration:NSTimeInterval = 0
-        var elapsedTime:NSTimeInterval = 0
+    func createAnimation(animationName:String, attachmentTimelines:JSON, longestDuration:TimeInterval) {
+        var duration:TimeInterval = 0
+        var elapsedTime:TimeInterval = 0
         var actionSequenceForAttachment = Array<SKAction>()
         
         for (_, timeline):(String, JSON) in attachmentTimelines {
-
-            duration = NSTimeInterval(timeline["time"].doubleValue) - elapsedTime
-            elapsedTime = NSTimeInterval(timeline["time"].doubleValue)
-            actionSequenceForAttachment.append(SKAction.waitForDuration(duration))
+            
+            duration = TimeInterval(timeline["time"].doubleValue) - elapsedTime
+            elapsedTime = TimeInterval(timeline["time"].doubleValue)
+            actionSequenceForAttachment.append(SKAction.wait(forDuration: duration))
             if self.name == timeline["name"].string {
                 actionSequenceForAttachment.append(SKAction.unhide())
             } else {
                 actionSequenceForAttachment.append(SKAction.hide())
             }
         }
-        //print(self.parent?.name, actionSequenceForAttachment)
+        
         // synch total animation time with other sprites
         let gabageTime = longestDuration - elapsedTime
-        let gabageAction = SKAction.waitForDuration(gabageTime)
+        let gabageAction = SKAction.wait(forDuration: gabageTime)
         actionSequenceForAttachment.append(gabageAction)
         
-
-        self.action[animationName] = SKAction.sequence(actionSequenceForAttachment)
-        // print(self.parent!.name, self.action)
         
+        self.action[animationName] = SKAction.sequence(actionSequenceForAttachment)
     }
     
 }
